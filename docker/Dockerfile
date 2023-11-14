@@ -12,8 +12,8 @@ WORKDIR /opt/LFH_FHIR
 RUN unzip fhir-install-5.1.1.zip
 RUN /opt/LFH_FHIR/fhir-server-dist/install.sh /opt/LFH_FHIR
 COPY files/server.xml /opt/LFH_FHIR/wlp/usr/servers/defaultServer
-
-#RUN java -jar /opt/LFH_FHIR/fhir-server-dist/tools/fhir-persistence-schema-5.1.1-cli.jar --prop "db.create=Y" --prop "db.database=/opt/LFH_FHIR/derby_fhirDB" --db-type derby
+COPY files/fhir-server-config-postgresql.json /opt/LFH_FHIR/wlp/usr/servers/defaultServer/config/default/fhir-server-config.json
+COPY files/datasource-postgresql.xml /opt/LFH_FHIR/wlp/usr/servers/defaultServer/configDropins/defaults/datasource.xml
 
 ENTRYPOINT ["/opt/LFH_FHIR/wlp/bin/server", "run"]
 #ENTRYPOINT ["tail", "-f", "/dev/null"]
