@@ -1,0 +1,70 @@
+import argparse
+import datetime
+import os
+import psycopg2
+
+from dateutil.relativedelta import relativedelta
+
+from fhir.resources.patient import Patient
+
+
+IDENTIFIER_TEMPLATE = {"use": "usual", "system": "https://github.com/synthetichealth/synthea"}
+
+
+def create_patient(ptnum, gender, birth_date):
+    identifier = IDENTIFIER_TEMPLATE.copy()
+    identifier["value"] = ptnum
+    return Patient(identifier=[identifier], active=True, gender=gender, birthDate=birth_date, deceasedBoolean=False)
+
+
+def query_patients(cursor):
+    sql = """select ptnum, raw_concept_code, raw_value
+            from testdata.synthea_test_data
+            where raw_concept_code in ('C-125680007', 'C-424144002', 'C-263495000')
+            order by ptnum;"""
+    cursor.execute(sql)
+    last_ptnum = None
+    marital_status = None
+    birth_date = None
+    gender = None
+    results = []
+    for row in cursor.fetchall():
+        ptnum = row[0]
+        if ptnum != last_ptnum:
+            if last_ptnum:
+                results.append(create_patient(last_ptnum, gender, birth_date))
+            last_ptnum = ptnum
+            
+        if row[1] == "C-125680007":
+            marital_status = row[2]  # TODO: convert to FHIR format
+        elif row[1] == "C-424144002":
+            birth_date = datetime.date.today() - relativedelta(years=float(row[2]))
+        else:
+            gender = row[2] == "m" and "male" or "female"
+    results.append(create_patient(last_ptnum, gender, birth_date))
+
+    return results
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Adds synthea patient info to FHIR server")
+    parser.add_argument("--db_host", type=str, required=True, help="DB host")
+    parser.add_argument("--db_port", type=int, default=5432, help="DB port")
+    parser.add_argument("--db_name", type=str, default="sec", help="DB name")
+    parser.add_argument("--db_user", type=str, default="secapp", help="DB user")
+    parser.add_argument("--limit", type=int, default=65536, help="If specified, only this many patients will be populated")
+    return parser.parse_args()
+
+
+if __name__ == "__main__":
+    args = parse_args()
+    db_pw = os.environ.get("DB_PASSWD")
+    conn = psycopg2.connect(host=args.db_host, port=args.db_port, database=args.db_name, user=args.db_user, password=db_pw)
+    cursor = conn.cursor()
+
+    patients = query_patients(cursor)
+    i = 0
+    while i < args.limit and i < len(patients):
+        print(patients[i].json())
+        i += 1
+
