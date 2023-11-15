@@ -5,16 +5,22 @@ import psycopg2
 
 from dateutil.relativedelta import relativedelta
 
+from fhir.resources.codeableconcept import CodeableConcept
+from fhir.resources.coding import Coding
 from fhir.resources.patient import Patient
 
 
 IDENTIFIER_TEMPLATE = {"use": "usual", "system": "https://github.com/synthetichealth/synthea"}
 
 
-def create_patient(ptnum, gender, birth_date):
+def create_patient(ptnum, gender, birth_date, marital_status):
     identifier = IDENTIFIER_TEMPLATE.copy()
     identifier["value"] = ptnum
-    return Patient(identifier=[identifier], active=True, gender=gender, birthDate=birth_date, deceasedBoolean=False)
+    m_text = marital_status == "m" and "Married" or "Never Married"
+    m_coding = Coding(system="http://hl7.org/fhir/ValueSet/marital-status", code=marital_status.upper(), display=m_text)
+    m_status = CodeableConcept(coding=[m_coding], text=m_text)
+    return Patient(identifier=[identifier], active=True, gender=gender, birthDate=birth_date,
+            deceasedBoolean=False, maritalStatus=m_status)
 
 
 def query_patients(cursor):
@@ -32,16 +38,16 @@ def query_patients(cursor):
         ptnum = row[0]
         if ptnum != last_ptnum:
             if last_ptnum:
-                results.append(create_patient(last_ptnum, gender, birth_date))
+                results.append(create_patient(last_ptnum, gender, birth_date, marital_status))
             last_ptnum = ptnum
             
         if row[1] == "C-125680007":
-            marital_status = row[2]  # TODO: convert to FHIR format
+            marital_status = row[2]
         elif row[1] == "C-424144002":
             birth_date = datetime.date.today() - relativedelta(years=float(row[2]))
         else:
             gender = row[2] == "m" and "male" or "female"
-    results.append(create_patient(last_ptnum, gender, birth_date))
+    results.append(create_patient(last_ptnum, gender, birth_date, marital_status))
 
     return results
 
