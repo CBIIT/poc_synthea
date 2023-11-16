@@ -2,8 +2,10 @@ import argparse
 import datetime
 import os
 import psycopg2
+import requests
 
 from dateutil.relativedelta import relativedelta
+from requests.auth import HTTPBasicAuth
 
 from fhir.resources.codeableconcept import CodeableConcept
 from fhir.resources.coding import Coding
@@ -12,6 +14,8 @@ from fhir.resources.patient import Patient
 
 IDENTIFIER_TEMPLATE = {"use": "usual", "system": "https://github.com/synthetichealth/synthea"}
 
+HEADERS = {"Accept": "application/fhir+json", "Content-Type": "application/fhir+json"}
+
 
 def create_patient(ptnum, gender, birth_date, marital_status):
     identifier = IDENTIFIER_TEMPLATE.copy()
@@ -19,7 +23,7 @@ def create_patient(ptnum, gender, birth_date, marital_status):
     m_text = marital_status == "m" and "Married" or "Never Married"
     m_coding = Coding(system="http://hl7.org/fhir/ValueSet/marital-status", code=marital_status.upper(), display=m_text)
     m_status = CodeableConcept(coding=[m_coding], text=m_text)
-    return Patient(identifier=[identifier], active=True, gender=gender, birthDate=birth_date,
+    return Patient(id=ptnum, identifier=[identifier], active=True, gender=gender, birthDate=birth_date,
             deceasedBoolean=False, maritalStatus=m_status)
 
 
@@ -52,12 +56,25 @@ def query_patients(cursor):
     return results
 
 
+def create_patient_in_fhir(fhir_server, fhir_auth, patient):
+    url = "%s/Patient/%s" % (fhir_server, patients[i].identifier[0].value)
+
+    # Use PUT so we can assign the id instead of having the server do it.
+    response = requests.put(url, data=patient.json(), headers=HEADERS, auth=fhir_auth, verify=False)
+    if not str(response.status_code).startswith("20"):
+        raise RuntimeError("FHIR server returned response code %d\n\n%s" % (response.status_code, response.text))
+    print(response.text)
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Adds synthea patient info to FHIR server")
     parser.add_argument("--db_host", type=str, required=True, help="DB host")
     parser.add_argument("--db_port", type=int, default=5432, help="DB port")
     parser.add_argument("--db_name", type=str, default="sec", help="DB name")
     parser.add_argument("--db_user", type=str, default="secapp", help="DB user")
+    parser.add_argument("--fhir_server", type=str, default="https://localhost:9443/fhir-server/api/v4",
+            help="Base URL of FHIR server")
+    parser.add_argument("--fhir_user", type=str, default="fhiruser", help="Username for FHIR server")
     parser.add_argument("--limit", type=int, default=65536, help="If specified, only this many patients will be populated")
     return parser.parse_args()
 
@@ -65,6 +82,8 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
     db_pw = os.environ.get("DB_PASSWD")
+    fhir_pw = os.environ.get("FHIR_PASSWD")
+    fhir_auth = HTTPBasicAuth(args.fhir_user, fhir_pw)
     conn = psycopg2.connect(host=args.db_host, port=args.db_port, database=args.db_name, user=args.db_user, password=db_pw)
     cursor = conn.cursor()
 
@@ -72,5 +91,7 @@ if __name__ == "__main__":
     i = 0
     while i < args.limit and i < len(patients):
         print(patients[i].json())
+        print()
+        create_patient_in_fhir(args.fhir_server, fhir_auth, patients[i])
         i += 1
 
