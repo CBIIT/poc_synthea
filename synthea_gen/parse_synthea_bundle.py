@@ -2,6 +2,7 @@
 
 import datetime
 import json
+import termcolor
 import sys
 
 
@@ -16,7 +17,11 @@ def print_condition(condition):
         code = "%s (%s)" % (condition["code"]["coding"][0]["code"], condition["code"]["coding"][0]["system"])
     name = condition["code"]["coding"][0]["display"]
 
-    print("%s %s, %s, %s" % (date, name, code, clinical_status))
+    s = "%s %s, %s, %s" % (date, name, code, clinical_status)
+    if name.find("cancer") >= 0:
+        print(termcolor.colored(s, "magenta"))
+    else:
+        print(s)
 
 
 
