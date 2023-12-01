@@ -1,8 +1,8 @@
 
-drop table if exists patient;
+drop table if exists patient cascade;
 create table patient(
     id serial primary key,
-    fhir_id character varying(64) not null,
+    fhir_id character varying(64) not null unique,
     name character varying(256) not null,
     gender character(1),
     dob timestamp without time zone,
@@ -21,7 +21,7 @@ create table condition(
     code_scheme character varying(256),
     clinical_status text,
     cancer_related boolean,
-    constraint condition_patient_fk foreign key (patient_id) references patient(id)
+    constraint condition_patient_fk foreign key (patient_id) references patient(id) on delete cascade
 );
 
 drop table if exists observation;
@@ -36,7 +36,7 @@ create table observation(
     value character varying(256),
     unit character varying(64),
     cancer_related boolean,
-    constraint observation_patient_fk foreign key (patient_id) references patient(id)
+    constraint observation_patient_fk foreign key (patient_id) references patient(id) on delete cascade
 );
 
 drop table if exists procedure;
@@ -48,5 +48,5 @@ create table procedure(
     code_scheme character varying(256),
     display text,
     cancer_related boolean,
-    constraint procedure_patient_fk foreign key (patient_id) references patient(id)
+    constraint procedure_patient_fk foreign key (patient_id) references patient(id) on delete cascade
 );

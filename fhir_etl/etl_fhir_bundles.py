@@ -50,6 +50,8 @@ def process_patient(cursor, patient):
 #    print("%s, %s" % (race, ethnicity))
 #    print()
 
+    print("%s: %s" % (patient_id, name))
+
     cursor.execute("""insert into patient(fhir_id, name, gender, dob, marital_status, race, ethnicity)
                     values(%s, %s, %s, %s, %s, %s, %s) returning id""",
                     (patient_id, name, gender, parsed_dob, marital_status, race, ethnicity))
@@ -111,21 +113,23 @@ def process_procedure(cursor, patient_id, procedure):
             values(%s, %s, %s, %s, %s, %s)""", (patient_id, date, code, code_scheme, display, cancer_related))
 
 
-def process_bundle(cursor, bundle):
+def process_bundle(conn, bundle):
     entries = bundle["entry"]
-    print("Processing %d entries in Bundle..." % len(entries))
-    for resource_r in entries:
-        resource = resource_r["resource"]
-        if resource["resourceType"] == "Patient":
-            patient_id = process_patient(cursor, resource)
-        else:
-            assert patient_id
-            if resource["resourceType"] == "Condition":
-                process_condition(cursor, patient_id, resource)
-            elif resource["resourceType"] == "Observation":
-                process_observation(cursor, patient_id, resource)
-            elif resource["resourceType"] == "Procedure":
-                process_procedure(cursor, patient_id, resource)
+    print("    Processing %d entries in Bundle..." % len(entries))
+    with conn:
+        with conn.cursor() as cursor:
+            patient_id = None
+            for resource_r in entries:
+                resource = resource_r["resource"]
+                if resource["resourceType"] == "Patient":
+                    patient_id = process_patient(cursor, resource)
+                elif patient_id:
+                    if resource["resourceType"] == "Condition":
+                        process_condition(cursor, patient_id, resource)
+                    elif resource["resourceType"] == "Observation":
+                        process_observation(cursor, patient_id, resource)
+                    elif resource["resourceType"] == "Procedure":
+                        process_procedure(cursor, patient_id, resource)
 
 
 def parse_args():
@@ -143,18 +147,31 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
+    conn = psycopg2.connect(host=args.db_host, port=args.db_port, database=args.db_name, user=args.db_user,
+            password=args.db_password)
 
-    print("Making request to FHIR server...")
-    response = requests.get(args.fhir_server + "/Bundle", auth=(args.fhir_user, args.fhir_password), verify=False)
-    if not str(response.status_code).startswith("20"):
-        raise RuntimeError("FHIR server returned code %d\n\n%s" % (response.status_code, response.text))
+    count = 0
+    url = args.fhir_server + "/Bundle"
+    while url:
+        print("Making request to FHIR server (%s)..." % url)
+        response = requests.get(url, auth=(args.fhir_user, args.fhir_password), verify=False)
+        if not str(response.status_code).startswith("20"):
+            raise RuntimeError("FHIR server returned code %d\n\n%s" % (response.status_code, response.text))
 
-    with psycopg2.connect(host=args.db_host, port=args.db_port, database=args.db_name,
-            user=args.db_user, password=args.db_password) as conn:
-        with conn.cursor() as cursor:
-            bundles = response.json()["entry"]
-            print("Processing %d bundles" % len(bundles))
-            for bundle_r in bundles:
-                bundle = bundle_r["resource"]
-                assert bundle["resourceType"] == "Bundle"
-                process_bundle(cursor, bundle)
+        response_j = response.json()
+
+        # paging
+        url = None
+        for link in response_j["link"]:
+            if link["relation"] == "next":
+                url = link["url"]
+
+        bundles = response_j["entry"]
+        print("Processing %d bundles..." % len(bundles))
+        for bundle_r in bundles:
+            bundle = bundle_r["resource"]
+            assert bundle["resourceType"] == "Bundle"
+            process_bundle(conn, bundle)
+            count += 1
+
+    print("Loaded %d Bundles." % count)
