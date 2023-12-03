@@ -52,7 +52,7 @@ def process_patient(cursor, patient):
 
     print("%s: %s" % (patient_id, name))
 
-    cursor.execute("""insert into patient(fhir_id, name, gender, dob, marital_status, race, ethnicity)
+    cursor.execute("""insert into fhir_etl.patient(fhir_id, name, gender, dob, marital_status, race, ethnicity)
                     values(%s, %s, %s, %s, %s, %s, %s) returning id""",
                     (patient_id, name, gender, parsed_dob, marital_status, race, ethnicity))
 
@@ -79,7 +79,8 @@ def process_condition(cursor, patient_id, condition):
     name = condition["code"]["coding"][0]["display"]
     cancer_related = is_cancer_related(code, code_scheme, name)
 
-    cursor.execute("""insert into condition(patient_id, name, condition_date, code, code_scheme, clinical_status, cancer_related)
+    cursor.execute("""insert into fhir_etl.condition(patient_id, name, condition_date, code, code_scheme, clinical_status,
+            cancer_related)
             values(%s, %s, %s, %s, %s, %s, %s)""", (patient_id, name, date, code, code_scheme, clinical_status, cancer_related))
 
 
@@ -96,7 +97,7 @@ def process_observation(cursor, patient_id, observation):
         unit = observation["valueQuantity"]["unit"]
     cancer_related = is_cancer_related(code, code_scheme, display)
 
-    cursor.execute("""insert into observation(patient_id, observation_date, category, code, code_scheme, display,
+    cursor.execute("""insert into fhir_etl.observation(patient_id, observation_date, category, code, code_scheme, display,
             value, unit, cancer_related)
             values(%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
             (patient_id, date, category, code, code_scheme, display, value, unit, cancer_related))
@@ -109,7 +110,7 @@ def process_procedure(cursor, patient_id, procedure):
     display = procedure["code"]["coding"][0]["display"]
     cancer_related = is_cancer_related(code, code_scheme, display)
 
-    cursor.execute("""insert into procedure(patient_id, procedure_date, code, code_scheme, display, cancer_related)
+    cursor.execute("""insert into fhir_etl.procedure(patient_id, procedure_date, code, code_scheme, display, cancer_related)
             values(%s, %s, %s, %s, %s, %s)""", (patient_id, date, code, code_scheme, display, cancer_related))
 
 
@@ -136,7 +137,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Retrieves Bundle resources from FHIR server, and loads into DB tables")
     parser.add_argument("--db_host", type=str, default="localhost", help="Source postgres DB host")
     parser.add_argument("--db_port", type=int, default=5432, help="Source postgres DB port")
-    parser.add_argument("--db_name", type=str, default="fhir_etl", help="Source postgres DB name")
+    parser.add_argument("--db_name", type=str, default="sec", help="Source postgres DB name")
     parser.add_argument("--db_user", type=str, default="secapp", help="Source postgres username")
     parser.add_argument("--db_password", type=str, default="", help="Source postgres username")
     parser.add_argument("--fhir_server", type=str, default="https://localhost:9443/fhir-server/api/v4", help="FHIR server URL")

@@ -1,6 +1,6 @@
 
-drop table if exists patient cascade;
-create table patient(
+drop table if exists fhir_etl.patient cascade;
+create table fhir_etl.patient(
     id serial primary key,
     fhir_id character varying(64) not null unique,
     name character varying(256) not null,
@@ -11,8 +11,8 @@ create table patient(
     ethnicity character varying(256)
 );
 
-drop table if exists condition;
-create table condition(
+drop table if exists fhir_etl.condition;
+create table fhir_etl.condition(
     id serial primary key,
     patient_id integer not null,
     name text not null,
@@ -21,11 +21,11 @@ create table condition(
     code_scheme character varying(256),
     clinical_status text,
     cancer_related boolean,
-    constraint condition_patient_fk foreign key (patient_id) references patient(id) on delete cascade
+    constraint condition_patient_fk foreign key (patient_id) references fhir_etl.patient(id) on delete cascade
 );
 
-drop table if exists observation;
-create table observation(
+drop table if exists fhir_etl.observation;
+create table fhir_etl.observation(
     id serial primary key,
     patient_id integer not null,
     observation_date timestamp without time zone,
@@ -36,11 +36,11 @@ create table observation(
     value character varying(256),
     unit character varying(64),
     cancer_related boolean,
-    constraint observation_patient_fk foreign key (patient_id) references patient(id) on delete cascade
+    constraint observation_patient_fk foreign key (patient_id) references fhir_etl.patient(id) on delete cascade
 );
 
-drop table if exists procedure;
-create table procedure(
+drop table if exists fhir_etl.procedure;
+create table fhir_etl.procedure(
     id serial primary key,
     patient_id integer not null,
     procedure_date timestamp without time zone,
@@ -48,5 +48,5 @@ create table procedure(
     code_scheme character varying(256),
     display text,
     cancer_related boolean,
-    constraint procedure_patient_fk foreign key (patient_id) references patient(id) on delete cascade
+    constraint procedure_patient_fk foreign key (patient_id) references fhir_etl.patient(id) on delete cascade
 );
