@@ -19,7 +19,10 @@ CANCER_TERMS = (
         "neoplasm",
         "malignan",
         "metast",
+        "radiation",
+        "chemo",
         "her2",
+        "mammogra"
         )
 
 
@@ -114,23 +117,29 @@ def process_procedure(cursor, patient_id, procedure):
             values(%s, %s, %s, %s, %s, %s)""", (patient_id, date, code, code_scheme, display, cancer_related))
 
 
-def process_bundle(conn, bundle):
+def process_bundle(conn, bundle, ignore_duplicates):
     entries = bundle["entry"]
     print("    Processing %d entries in Bundle..." % len(entries))
-    with conn:
-        with conn.cursor() as cursor:
-            patient_id = None
-            for resource_r in entries:
-                resource = resource_r["resource"]
-                if resource["resourceType"] == "Patient":
-                    patient_id = process_patient(cursor, resource)
-                elif patient_id:
-                    if resource["resourceType"] == "Condition":
-                        process_condition(cursor, patient_id, resource)
-                    elif resource["resourceType"] == "Observation":
-                        process_observation(cursor, patient_id, resource)
-                    elif resource["resourceType"] == "Procedure":
-                        process_procedure(cursor, patient_id, resource)
+    try:
+        with conn:
+            with conn.cursor() as cursor:
+                patient_id = None
+                for resource_r in entries:
+                    resource = resource_r["resource"]
+                    if resource["resourceType"] == "Patient":
+                        patient_id = process_patient(cursor, resource)
+                    elif patient_id:
+                        if resource["resourceType"] == "Condition":
+                            process_condition(cursor, patient_id, resource)
+                        elif resource["resourceType"] == "Observation":
+                            process_observation(cursor, patient_id, resource)
+                        elif resource["resourceType"] == "Procedure":
+                            process_procedure(cursor, patient_id, resource)
+    except psycopg2.errors.UniqueViolation:
+        if ignore_duplicates:
+            print("Duplicate key for patient %s; will not be inserted" % patient_id)
+        else:
+            raise
 
 
 def parse_args():
@@ -143,6 +152,8 @@ def parse_args():
     parser.add_argument("--fhir_server", type=str, default="https://localhost:9443/fhir-server/api/v4", help="FHIR server URL")
     parser.add_argument("--fhir_user", type=str, default="fhiruser", help="FHIR server user")
     parser.add_argument("--fhir_password", type=str, required=True, help="FHIR server password")
+    parser.add_argument("--ignore_duplicates", action=argparse.BooleanOptionalAction,
+            help="If present, script will skip over patients that already exist in DB; otherwise, an error will be thrown")
     return parser.parse_args()
 
 
@@ -172,7 +183,7 @@ if __name__ == "__main__":
         for bundle_r in bundles:
             bundle = bundle_r["resource"]
             assert bundle["resourceType"] == "Bundle"
-            process_bundle(conn, bundle)
+            process_bundle(conn, bundle, args.ignore_duplicates)
             count += 1
 
     print("Loaded %d Bundles." % count)

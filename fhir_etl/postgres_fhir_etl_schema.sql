@@ -23,6 +23,22 @@ create table fhir_etl.condition(
     cancer_related boolean,
     constraint condition_patient_fk foreign key (patient_id) references fhir_etl.patient(id) on delete cascade
 );
+create index condition_patient_id_idx on fhir_etl.condition(patient_id);
+create index condition_date_idx on fhir_etl.condition(condition_date);
+
+drop table if exists fhir_etl.procedure;
+create table fhir_etl.procedure(
+    id serial primary key,
+    patient_id integer not null,
+    procedure_date timestamp without time zone,
+    code character varying(256),
+    code_scheme character varying(256),
+    display text,
+    cancer_related boolean,
+    constraint procedure_patient_fk foreign key (patient_id) references fhir_etl.patient(id) on delete cascade
+);
+create index procedure_patient_id_idx on fhir_etl.procedure(patient_id);
+create index procedure_date_idx on fhir_etl.procedure(procedure_date);
 
 drop table if exists fhir_etl.observation;
 create table fhir_etl.observation(
@@ -38,15 +54,5 @@ create table fhir_etl.observation(
     cancer_related boolean,
     constraint observation_patient_fk foreign key (patient_id) references fhir_etl.patient(id) on delete cascade
 );
-
-drop table if exists fhir_etl.procedure;
-create table fhir_etl.procedure(
-    id serial primary key,
-    patient_id integer not null,
-    procedure_date timestamp without time zone,
-    code character varying(256),
-    code_scheme character varying(256),
-    display text,
-    cancer_related boolean,
-    constraint procedure_patient_fk foreign key (patient_id) references fhir_etl.patient(id) on delete cascade
-);
+create index observation_patient_id_idx on fhir_etl.observation(patient_id);
+create index observation_date_idx on fhir_etl.observation(observation_date);
