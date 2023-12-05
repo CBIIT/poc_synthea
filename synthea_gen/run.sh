@@ -1,4 +1,8 @@
 #!/bin/bash
+#
+# Runs the Synthea tool, with some options specified.
+#
+# See synthea.properties for additional options.
 
 rm -rf output
 rand_seed=`shuf --random-source='/dev/urandom' -n 1 -i 2000-2000000;`
