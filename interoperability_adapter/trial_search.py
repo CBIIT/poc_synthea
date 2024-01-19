@@ -1,6 +1,7 @@
 
 import datetime
 import psycopg2
+import requests
 
 
 CANCER_TERMS = (
@@ -17,9 +18,14 @@ class TrialSearch:
     Class that encapsulates the matching logic.
     '''
 
-    def __init__(self, db_host, db_port, db_name, db_user, db_password):
-        conn = psycopg2.connect(host=db_host, port=db_port, database=db_name, user=db_user, password=db_password)
-        self._cursor = conn.cursor()
+#    def __init__(self, db_host, db_port, db_name, db_user, db_password):
+    def __init__(self, cts_api_key):
+#        conn = psycopg2.connect(host=db_host, port=db_port, database=db_name, user=db_user, password=db_password)
+#        self._cursor = conn.cursor()
+        self._cts_headers = {
+                'Accept': 'application/json',
+                'x-api-key': cts_api_key,
+                }
 
 
     def _parse_patient(self, patient):
@@ -87,13 +93,44 @@ class TrialSearch:
         return [self._convert_snomed_to_ncit(code[0]) for code in codes]
 
 
+    def _get_trials_for_diseases(self, gender, age, disease_codes):
+        start = 0
+        total = -1
+        total_retrieved = 0
+        trials = []
+        while start == 0 or (total_retrieved < total):
+            params = {
+                    'current_trial_status': 'Active',
+                    'primary_purpose': ['TREATMENT', 'SCREENING'],
+                    'eligibility.structured.min_age_in_years_lte': age,
+                    'eligibility.structured.max_age_in_years_gte': age,
+                    'eligibility.structured.gender': ['BOTH', gender.upper()],
+                    'diseases.nci_thesaurus_concept_id': disease_codes,
+                    'size': 50,
+                    'from': start,
+                    }
+            print('Calling CTS API, offset %d (%d total)...' % (start, total))
+            response = requests.get('https://clinicaltrialsapi.cancer.gov/api/v2/trials', params=params,
+                    headers=self._cts_headers)
+            if response.status_code != 200:
+                raise RuntimeError('Received %d from CTS API:\n%s' % (response.status_code, response.text))
+            start += 50
+            data = response.json()
+            if total == -1:
+                total = data['total']
+            total_retrieved += len(data['data'])
+            trials.extend(data['data'])
+
+        print('Fetched %d trials total' % len(trials))
+        return trials
+
+
     def search(self, fhir_bundle):
-        cancer_codes = self._get_cancer_diagnoses(fhir_bundle)
-        print(cancer_codes)
-        if not cancer_codes:
+        disease_codes = self._get_cancer_diagnoses(fhir_bundle)
+        if not disease_codes:
 
             # No cancer diagnoses; no need to search.
             return []
 
         age, gender, zip_code = self._parse_patient(fhir_bundle.entry[0].resource)
-        return []
+        return self._get_trials_for_diseases(gender, age, disease_codes)
