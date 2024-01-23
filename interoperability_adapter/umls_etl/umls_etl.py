@@ -47,15 +47,14 @@ def read_file(umls_file, code_scheme):
     total_lines = 0
     with open(args.umls_file) as f:
         for line in f:
-            total_lines += 1
             line = line.strip()
             fields = line.split('|')
             if len(fields) >= 15:
+                total_lines += 1
                 if fields[11] == code_scheme or fields[11] == 'NCI':
                     if fields[1] == 'ENG':
                         if fields[12] == 'PT':  # Preferred term, as opposed to synonym
                             umls_id = fields[0]
-                            code = fields[13]
                             if fields[11] == args.code_scheme:
                                 other_entries[umls_id].append(fields)
                             elif fields[11] == 'NCI':
@@ -94,14 +93,14 @@ if __name__ == '__main__':
     with_dups = 0
     insert_tuples = []
     for umls_code, ncit_values in ncit_entries.items():
-        for ncit_value in ncit_values:
-            if umls_code in other_entries:
-                ncit_total -= 1
+        if umls_code in other_entries:
+            ncit_total -= 1
+            for ncit_value in ncit_values:
                 if len(other_entries[umls_code]) > 1:
                     with_dups += 1
                 for other_value in other_entries[umls_code]:
                     insert_tuples.append((ncit_value[0], umls_code, other_value[0], other_value[1], args.code_scheme))
-                del(other_entries[umls_code])
+            del(other_entries[umls_code])
 
     print('%d NCIT codes not found in %s; %d %s codes not found in NCIT; %d NCIT codes have %s duplicates.'
             % (ncit_total, args.code_scheme, len(other_entries), args.code_scheme, with_dups, args.code_scheme))
