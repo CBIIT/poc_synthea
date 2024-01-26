@@ -18,7 +18,8 @@ def populate_ncit(umls_cursor, sec_cursor, delete):
 
     inserted = 0
 
-    def save(row):
+    def save(code, cui, umls_preferred, ncit_preferred):
+        nonlocal inserted
         sql = "insert into co.umls_ncit(umls_cui, is_umls_preferred, ncit_code, is_ncit_preferred) values(%s, %s, %s, %s)"
         is_umls_preferred = row[3] == 'P' or row[4] == 'Y'
         is_ncit_preferred = row[2].startswith('PT')
@@ -26,15 +27,26 @@ def populate_ncit(umls_cursor, sec_cursor, delete):
         inserted += 1
 
     umls_cursor.execute("select code, cui, tty, ts, ispref from mrconso where sab='NCI' order by code, cui")
-    last_row = [None, None, None, None]
+    last_code = None
+    last_cui = None
+    umls_preferred = False
+    ncit_preferred = False
     for row in umls_cursor.fetchall():
-        if row[0] != last_row[0] or row[1] != last_row[1]:  # different code or cui
-            if last_row[0] and last_row[1]:
-                save(last_row)
-            last_row = row
+        code = row[0]
+        cui = row[1]
+        if (last_code is None or last_cui is None) or (code == last_code and cui == last_cui):
+            umls_preferred = umls_preferred or row[3] == 'P' or row[4] == 'Y'
+            ncit_preferred = ncit_preferred or row[2].startswith('PT')  # PT: "preferred term"
+        elif code != last_code or cui != last_cui:
+            if last_code and last_cui:
+                save(last_code, last_cui, umls_preferred, ncit_preferred)
+                umls_preferred = False
+                ncit_preferred = False
+        last_code = code
+        last_cui = cui
 
-    if row[0] != last_row[0] or row[1] != last_row[1]:
-        save(last_row)
+    if code != last_code or cui != last_cui:
+        save(last_code, last_cui, umls_preferred, ncit_preferred)
 
     print('Inserted %d rows into umls_ncit.' % inserted)
 
