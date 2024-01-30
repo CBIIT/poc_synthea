@@ -13,42 +13,63 @@ import sys
 
 
 def populate_ncit(umls_cursor, sec_cursor, delete):
+    '''Populates umls_ncit table based on MRCONSO rows.
+    '''
     if delete:
         sec_cursor.execute("delete from co.umls_ncit")
 
-    inserted = 0
-
-    def save(code, cui, umls_preferred, ncit_preferred):
-        nonlocal inserted
+    def save(scheme, code, cui, umls_preferred, ncit_preferred, description):
         sql = "insert into co.umls_ncit(umls_cui, is_umls_preferred, ncit_code, is_ncit_preferred) values(%s, %s, %s, %s)"
         sec_cursor.execute(sql, (cui, umls_preferred, code, ncit_preferred))
-        inserted += 1
 
-    umls_cursor.execute("select code, cui, tty, ts, ispref from mrconso where sab='NCI' order by code, cui")
+    _populate_table('NCI', save)
+
+
+def populate_other(code_scheme, umls_cursor, sec_cursor, delete):
+    '''Populates umls_ontologies based on MRCONSO rows for a single code scheme.
+    '''
+    if delete:
+        sec_cursor.execute("delete from co.umls_ontologies where scheme = %s", (code_scheme,))
+
+    def save(scheme, code, cui, umls_preferred, other_preferred, description):
+        sql = """insert into co.umls_ontologies(umls_cui, is_umls_preferred, scheme, code, is_other_scheme_preferred,
+                description) values(%s, %s, %s, %s, %s, %s)"""
+        sec_cursor.execute(sql, (cui, umls_preferred, scheme, code, other_preferred, description))
+
+    _populate_table(code_scheme, save)
+
+
+def _populate_table(scheme, save_function):
+    umls_cursor.execute("select code, cui, tty, ts, ispref, str from mrconso where sab = %s order by code, cui", (scheme,))
     last_code = None
     last_cui = None
+    last_descr = None
     umls_preferred = False
-    ncit_preferred = False
+    other_preferred = False
+    inserted = 0
     for row in umls_cursor.fetchall():
         code = row[0]
         cui = row[1]
         if (last_code is None or last_cui is None) or (code == last_code and cui == last_cui):
             umls_preferred = umls_preferred or row[3] == 'P' or row[4] == 'Y'
-            ncit_preferred = ncit_preferred or row[2].startswith('PT')  # PT: "preferred term"
+            other_preferred = other_preferred or row[2].startswith('PT')  # PT: "preferred term"
         elif code != last_code or cui != last_cui:
             if last_code and last_cui:
-                save(last_code, last_cui, umls_preferred, ncit_preferred)
+                save_function(scheme, last_code, last_cui, umls_preferred, other_preferred, last_descr)
+                inserted += 1
                 umls_preferred = False
-                ncit_preferred = False
+                other_preferred = False
         last_code = code
         last_cui = cui
+        last_desc = row[5]
 
     if code != last_code or cui != last_cui:
-        save(last_code, last_cui, umls_preferred, ncit_preferred)
+        save_function(scheme, last_code, last_cui, umls_preferred, other_preferred, last_descr)
+        inserted += 1
 
-    print('Inserted %d rows into umls_ncit.' % inserted)
+    print('Inserted %d rows for %s.' % (inserted, scheme))
 
-
+'''
 def populate_other(code_scheme, umls_cursor, sec_cursor, delete):
     umls_cursor.execute("select code, cui, tty, ts, ispref from mrconso where sab='SNOMEDCT_US' and lat='ENG'")
     cui_to_snomed = collections.defaultdict(set)
@@ -64,6 +85,7 @@ def populate_other(code_scheme, umls_cursor, sec_cursor, delete):
         elif not sno_set:
             cuis_with_no_snomeds += 1
     print('%d total cuis (for SNOMEDCT_US rows); %d have no snomed code; %d have more than 1 snomed codes' % (total_cuis, cuis_with_no_snomeds, cuis_with_multiple_snomeds))
+'''
 
 
 def parse_args():
@@ -95,6 +117,6 @@ if __name__ == '__main__':
                           password=sec_pw) as sec_conn:
         with sec_conn.cursor() as sec_cursor:
             populate_ncit(umls_cursor, sec_cursor, args.delete)
-#            populate_other(args.code_scheme, umls_cursor, sec_cursor, args.delete)
+            populate_other(args.code_scheme, umls_cursor, sec_cursor, args.delete)
 
     umls_conn.close()
