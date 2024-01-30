@@ -21,9 +21,7 @@ def populate_ncit(umls_cursor, sec_cursor, delete):
     def save(code, cui, umls_preferred, ncit_preferred):
         nonlocal inserted
         sql = "insert into co.umls_ncit(umls_cui, is_umls_preferred, ncit_code, is_ncit_preferred) values(%s, %s, %s, %s)"
-        is_umls_preferred = row[3] == 'P' or row[4] == 'Y'
-        is_ncit_preferred = row[2].startswith('PT')
-        sec_cursor.execute(sql, (row[1], is_umls_preferred, row[0], is_ncit_preferred))
+        sec_cursor.execute(sql, (cui, umls_preferred, code, ncit_preferred))
         inserted += 1
 
     umls_cursor.execute("select code, cui, tty, ts, ispref from mrconso where sab='NCI' order by code, cui")
