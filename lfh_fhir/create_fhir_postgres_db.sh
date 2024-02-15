@@ -1,4 +1,7 @@
 #!/bin/bash
+#
+# Creates the Postgres DB used by the server.
+# Download the .jar file used here at https://github.com/LinuxForHealth/FHIR/releases.
 
 set -e
 

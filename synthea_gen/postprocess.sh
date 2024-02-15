@@ -5,7 +5,7 @@
 for F in `\ls output/fhir/*.json`
 do
 
-     # Lung Cancer
+     # Lung Cancer: SNOMED CT codes for NSCLC diagnosis.
 #    egrep -li -e 162573006 -e 254637007 -e 424132000 $F > /dev/null
 
     # Breast Cancer with HER2 biomarker.

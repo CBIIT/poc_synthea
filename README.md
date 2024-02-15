@@ -1,6 +1,8 @@
 # Synthea Synthetic Cancer Patient Generation
 
-A hodgepodge of scripts related to generating synthetic patient data using the [Synthea](https://github.com/synthetichealth/synthea) tool.
+A hodgepodge of scripts related to generating synthetic patient data using the [Synthea](https://github.com/synthetichealth/synthea) tool, and loading it into a FHIR server.
+
+The overarching vision/motivation is to use electronic health records (EHR), in FHIR format, as input data for clinical trial matching.  Because of the personal health information concerns about using real patient data, we are starting with this Synthea data.
 
 [synthea_gen](synthea_gen): wrapper scripts for running Synthea and pulling out patient cohorts with specific types of cancer.
 
